@@ -1,0 +1,139 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ENSEIGNANT
+  ETUDIANT
+}
+
+enum Jour {
+  LUNDI
+  MARDI
+  MERCREDI
+  JEUDI
+  VENDREDI
+  SAMEDI
+}
+
+model Utilisateur {
+  id               String                 @id @default(uuid())
+  nom              String
+  email            String                 @unique
+  motDePasse       String
+  role             Role
+  createdAt        DateTime               @default(now())
+  enseignant       Enseignant?
+  etudiant         Etudiant?
+  passwordResetToken PasswordResetToken? // Nouvelle relation
+}
+
+model Enseignant {
+  id            String            @id @default(uuid())
+  utilisateurId String            @unique
+  poste         String?
+  utilisateur   Utilisateur       @relation(fields: [utilisateurId], references: [id])
+  matieres      EnseignantMatiere[]
+  seances       Seance[]
+}
+
+model Etudiant {
+  id            String    @id @default(uuid())
+  utilisateurId String    @unique
+  matricule     String?   @unique
+  niveauId      String? // Lien vers le niveau de l'étudiant
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
+  niveau        Niveau?   @relation(fields: [niveauId], references: [id])
+}
+
+model Niveau {
+  id          String      @id @default(uuid())
+  nom         String      // L1, L2, L3, M1, M2...
+  departementId String
+  departement Departement @relation(fields: [departementId], references: [id])
+  seances     Seance[]
+  etudiants   Etudiant[]
+  matieres    Matiere[]
+
+  @@unique([nom, departementId])
+}
+
+model Departement {
+  id      String   @id @default(uuid())
+  nom     String   @unique // Droit, Economie, Gestion, Sciences Sociales
+  niveaux Niveau[]
+}
+
+model Salle {
+  id       String   @id @default(uuid())
+  nom      String   @unique
+  type     String
+  capacite Int
+  seances  Seance[]
+}
+
+model Matiere {
+  id          String            @id @default(uuid())
+  nom         String
+  niveauId    String
+  niveau      Niveau            @relation(fields: [niveauId], references: [id])
+  enseignants EnseignantMatiere[]
+  seances     Seance[]
+
+  @@unique([nom, niveauId])
+}
+
+model EnseignantMatiere {
+  enseignantId String
+  matiereId    String
+  enseignant   Enseignant @relation(fields: [enseignantId], references: [id])
+  matiere      Matiere    @relation(fields: [matiereId], references: [id])
+
+  @@id([enseignantId, matiereId])
+  @@index([matiereId])
+}
+
+model Seance {
+  id            String    @id @default(uuid())
+  niveauId      String
+  enseignantId  String
+  matiereId     String
+  salleId       String
+  jour          Jour
+  heureDebut    DateTime // Format HH:MM
+  heureFin      DateTime // Format HH:MM
+  anneeScolaire String
+  semestre      String?
+  niveau        Niveau    @relation(fields: [niveauId], references: [id])
+  enseignant    Enseignant @relation(fields: [enseignantId], references: [id])
+  matiere       Matiere   @relation(fields: [matiereId], references: [id])
+  salle         Salle     @relation(fields: [salleId], references: [id])
+
+  @@index([niveauId])
+  @@index([enseignantId])
+  @@index([matiereId])
+  @@index([salleId])
+}
+
+// Nouveau modèle pour la réinitialisation de mot de passe
+model PasswordResetToken {
+  id         String   @id @default(uuid())
+  token      String   @unique // Le jeton unique envoyé à l'utilisateur
+  userId     String   @unique // L'ID de l'utilisateur associé à ce jeton
+  expiresAt  DateTime // Date/heure d'expiration du jeton
+  createdAt  DateTime @default(now())
+  user       Utilisateur @relation(fields: [userId], references: [id])
+}
