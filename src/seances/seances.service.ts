@@ -1,4 +1,3 @@
-// src/seances/seances.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -10,9 +9,9 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateSeanceDto } from './dto/create-seance.dto';
 import { UpdateSeanceDto } from './dto/update-seance.dto';
-import { FindSeancesFilterDto } from './dto/find-seances-filter.dto'; // Importez le nouveau DTO
+import { FindSeancesFilterDto } from './dto/find-seances-filter.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { Role, Jour } from '@prisma/client';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class SeancesService {
@@ -20,7 +19,6 @@ export class SeancesService {
 
   /**
    * Crée une nouvelle séance après validation des contraintes.
-   * (Pas de changement par rapport à la version précédente)
    */
   async create(createSeanceDto: CreateSeanceDto, userId: string) {
     const {
@@ -28,16 +26,17 @@ export class SeancesService {
       enseignantId,
       matiereId,
       salleId,
-      jour,
+      date,
       heureDebut,
       heureFin,
       anneeScolaire,
       semestre,
     } = createSeanceDto;
 
-    // Convertir les heures en objets Date pour faciliter la comparaison
-    const debut = new Date(`1970-01-01T${heureDebut}:00`);
-    const fin = new Date(`1970-01-01T${heureFin}:00`);
+    // Convertir les heures et date en objets Date pour faciliter la comparaison
+    const debut = new Date(`${date}T${heureDebut}:00`);
+    const fin = new Date(`${date}T${heureFin}:00`);
+    const dateObj = new Date(date);
 
     if (debut >= fin) {
       throw new BadRequestException("L'heure de début doit être antérieure à l'heure de fin.");
@@ -54,13 +53,11 @@ export class SeancesService {
         throw new NotFoundException("Utilisateur connecté introuvable.");
       }
 
-      // Seuls les ADMINs ou l'ENSEIGNANT qui donne la séance peuvent la créer
       if (creatingUser.role !== Role.ADMIN && creatingUser.enseignant?.id !== enseignantId) {
         throw new ForbiddenException("Vous n'êtes pas autorisé à créer cette séance pour un autre enseignant.");
       }
 
-
-      // 1. Vérifier l'existence des entités liées (Niveau, Enseignant, Matiere, Salle)
+      // 1. Vérifier l'existence des entités liées
       const [niveau, enseignant, matiere, salle] = await Promise.all([
         this.prisma.niveau.findUnique({ where: { id: niveauId } }),
         this.prisma.enseignant.findUnique({ where: { id: enseignantId } }),
@@ -95,37 +92,29 @@ export class SeancesService {
         );
       }
 
-
-      // 4. Vérifier la disponibilité de l'enseignant et de la salle
+      // 4. Vérifier la disponibilité de l'enseignant et de la salle (pour la même date)
       const overlappingSeances = await this.prisma.seance.findMany({
         where: {
-          jour: jour,
+          date: dateObj,
           anneeScolaire: anneeScolaire,
-          semestre: semestre, // Inclure le semestre dans la vérification de chevauchement
+          semestre: semestre,
           OR: [
-            // Vérifier le chevauchement pour l'enseignant OU la salle
             { enseignantId: enseignantId },
             { salleId: salleId },
           ],
-          // Condition de chevauchement des horaires
           AND: [
-            {
-              heureDebut: { lt: fin }, // La séance existante commence avant la fin de la nouvelle
-            },
-            {
-              heureFin: { gt: debut }, // La séance existante se termine après le début de la nouvelle
-            },
+            { heureDebut: { lt: fin } },
+            { heureFin: { gt: debut } },
           ],
         },
       });
 
-      // Vérifier chaque chevauchement trouvé
       for (const seance of overlappingSeances) {
         if (seance.enseignantId === enseignantId) {
-          throw new ConflictException(`L'enseignant est déjà occupé de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} pour une autre séance ce ${jour}.`);
+          throw new ConflictException(`L'enseignant est déjà occupé de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} pour une autre séance à cette date.`);
         }
         if (seance.salleId === salleId) {
-          throw new ConflictException(`La salle "${salle.nom}" est déjà occupée de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} ce ${jour}.`);
+          throw new ConflictException(`La salle "${salle.nom}" est déjà occupée de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} à cette date.`);
         }
       }
 
@@ -136,7 +125,7 @@ export class SeancesService {
           enseignantId,
           matiereId,
           salleId,
-          jour,
+          date: dateObj,
           heureDebut: debut,
           heureFin: fin,
           anneeScolaire,
@@ -161,7 +150,6 @@ export class SeancesService {
         throw error;
       }
       if (error instanceof PrismaClientKnownRequestError) {
-        // Gérer d'autres erreurs Prisma si nécessaire
         console.error('Erreur Prisma lors de la création de la séance:', error);
       }
       console.error('Erreur inattendue lors de la création de la séance:', error);
@@ -173,51 +161,34 @@ export class SeancesService {
 
   /**
    * Récupère toutes les séances avec leurs relations complètes, avec possibilité de filtrage.
-   * @param filters Les critères de filtrage optionnels.
-   * @returns Une liste de toutes les séances filtrées.
    */
   async findAll(filters: FindSeancesFilterDto = {}) {
     const where: any = {};
 
-    // Construire la clause 'where' dynamiquement à partir des filtres
-    if (filters.niveauId) {
-      where.niveauId = filters.niveauId;
-    }
-    if (filters.enseignantId) {
-      where.enseignantId = filters.enseignantId;
-    }
-    if (filters.matiereId) {
-      where.matiereId = filters.matiereId;
-    }
-    if (filters.salleId) {
-      where.salleId = filters.salleId;
-    }
-    if (filters.jour) {
-      where.jour = filters.jour;
-    }
-    if (filters.anneeScolaire) {
-      where.anneeScolaire = filters.anneeScolaire;
-    }
-    if (filters.semestre) {
-      where.semestre = filters.semestre;
-    }
-
-    // Gestion des filtres d'heure de début/fin (facultatif et plus complexe)
-    // Pour des recherches exactes à l'heure près, il faudrait convertir en Date
-    // et utiliser gte/lte. Pour l'instant, on se base sur les IDs et le jour.
-    // Si besoin de filtrer par "séances qui commencent après X heure" ou "finissent avant Y heure",
-    // il faudrait ajouter des logiques de comparaison de Date objects ici.
+    if (filters.niveauId) where.niveauId = filters.niveauId;
+    if (filters.enseignantId) where.enseignantId = filters.enseignantId;
+    if (filters.matiereId) where.matiereId = filters.matiereId;
+    if (filters.salleId) where.salleId = filters.salleId;
+    if (filters.date) where.date = new Date(filters.date);
+    if (filters.anneeScolaire) where.anneeScolaire = filters.anneeScolaire;
+    if (filters.semestre) where.semestre = filters.semestre;
+    // Pour heureDebut/heureFin, adapter si besoin pour du range
 
     try {
       return await this.prisma.seance.findMany({
-        where, // Applique les filtres
+        where,
         include: {
           niveau: { include: { departement: true } },
           enseignant: { include: { utilisateur: true } },
           matiere: { include: { niveau: true } },
           salle: true,
         },
-        orderBy: [{ anneeScolaire: 'asc' }, { semestre: 'asc' }, { jour: 'asc' }, { heureDebut: 'asc' }], // Meilleur ordre de tri pour un emploi du temps
+        orderBy: [
+          { date: 'asc' },
+          { anneeScolaire: 'asc' },
+          { semestre: 'asc' },
+          { heureDebut: 'asc' },
+        ],
       });
     } catch (error) {
       console.error('Erreur lors de la récupération des séances filtrées:', error);
@@ -227,7 +198,6 @@ export class SeancesService {
 
   /**
    * Récupère une séance spécifique par son ID, avec ses relations.
-   * (Pas de changement par rapport à la version précédente)
    */
   async findOne(id: string) {
     try {
@@ -258,7 +228,6 @@ export class SeancesService {
 
   /**
    * Met à jour une séance existante.
-   * (Pas de changement par rapport à la version précédente)
    */
   async update(id: string, updateSeanceDto: UpdateSeanceDto, userId: string) {
     const {
@@ -266,7 +235,7 @@ export class SeancesService {
       enseignantId,
       matiereId,
       salleId,
-      jour,
+      date,
       heureDebut,
       heureFin,
       anneeScolaire,
@@ -282,7 +251,6 @@ export class SeancesService {
         throw new NotFoundException(`Séance avec l'ID "${id}" introuvable.`);
       }
 
-      // Vérifier l'utilisateur qui tente de modifier la séance
       const updatingUser = await this.prisma.utilisateur.findUnique({
         where: { id: userId },
         include: { enseignant: true },
@@ -292,28 +260,25 @@ export class SeancesService {
         throw new NotFoundException("Utilisateur connecté introuvable.");
       }
 
-      // Seuls les ADMINs ou l'ENSEIGNANT responsable de la séance peuvent la modifier
       if (updatingUser.role !== Role.ADMIN && updatingUser.enseignant?.id !== existingSeance.enseignantId) {
         throw new ForbiddenException("Vous n'êtes pas autorisé à modifier cette séance.");
       }
-
 
       // Récupérer les valeurs actuelles si non fournies dans le DTO de mise à jour
       const currentNiveauId = niveauId || existingSeance.niveauId;
       const currentEnseignantId = enseignantId || existingSeance.enseignantId;
       const currentMatiereId = matiereId || existingSeance.matiereId;
       const currentSalleId = salleId || existingSeance.salleId;
-      const currentJour = jour || existingSeance.jour;
-      // Convertir les Date objects en string HH:MM pour la comparaison si heureDebut/Fin ne sont pas fournies
+      const currentDate = date || existingSeance.date.toISOString().slice(0, 10);
       const currentHeureDebut = heureDebut || existingSeance.heureDebut.toTimeString().substring(0, 5);
       const currentHeureFin = heureFin || existingSeance.heureFin.toTimeString().substring(0, 5);
       const currentAnneeScolaire = anneeScolaire || existingSeance.anneeScolaire;
       const currentSemestre = semestre !== undefined ? semestre : existingSeance.semestre;
 
-
-      // Convertir les heures en objets Date pour la comparaison
-      const debut = new Date(`1970-01-01T${currentHeureDebut}:00`);
-      const fin = new Date(`1970-01-01T${currentHeureFin}:00`);
+      // Convertir date/heure
+      const debut = new Date(`${currentDate}T${currentHeureDebut}:00`);
+      const fin = new Date(`${currentDate}T${currentHeureFin}:00`);
+      const dateObj = new Date(currentDate);
 
       if (debut >= fin) {
         throw new BadRequestException("L'heure de début doit être antérieure à l'heure de fin.");
@@ -332,14 +297,12 @@ export class SeancesService {
       if (!matiere) throw new NotFoundException(`Matière avec l'ID "${currentMatiereId}" introuvable.`);
       if (!salle) throw new NotFoundException(`Salle avec l'ID "${currentSalleId}" introuvable.`);
 
-      // 2. Vérifier la cohérence matière/niveau
       if (matiere.niveauId !== currentNiveauId) {
         throw new BadRequestException(
           `La matière "${matiere.nom}" n'est pas associée au niveau "${niveau.nom}".`,
         );
       }
 
-      // 3. Vérifier que la matière fait partie des matières que l'enseignant est autorisé à enseigner
       const enseignantMatiere = await this.prisma.enseignantMatiere.findUnique({
         where: {
           enseignantId_matiereId: {
@@ -354,11 +317,11 @@ export class SeancesService {
         );
       }
 
-      // 4. Vérifier la disponibilité de l'enseignant et de la salle (en excluant la séance actuelle)
+      // 4. Vérifier la disponibilité de l'enseignant et de la salle (en excluant la séance actuelle, même date)
       const overlappingSeances = await this.prisma.seance.findMany({
         where: {
-          id: { not: id }, // Exclure la séance que nous sommes en train de modifier
-          jour: currentJour,
+          id: { not: id },
+          date: dateObj,
           anneeScolaire: currentAnneeScolaire,
           semestre: currentSemestre,
           OR: [
@@ -366,22 +329,18 @@ export class SeancesService {
             { salleId: currentSalleId },
           ],
           AND: [
-            {
-              heureDebut: { lt: fin },
-            },
-            {
-              heureFin: { gt: debut },
-            },
+            { heureDebut: { lt: fin } },
+            { heureFin: { gt: debut } },
           ],
         },
       });
 
       for (const seance of overlappingSeances) {
         if (seance.enseignantId === currentEnseignantId) {
-          throw new ConflictException(`L'enseignant est déjà occupé de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} pour une autre séance ce ${currentJour}.`);
+          throw new ConflictException(`L'enseignant est déjà occupé de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} pour une autre séance à cette date.`);
         }
         if (seance.salleId === currentSalleId) {
-          throw new ConflictException(`La salle "${salle.nom}" est déjà occupée de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} ce ${currentJour}.`);
+          throw new ConflictException(`La salle "${salle.nom}" est déjà occupée de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} à cette date.`);
         }
       }
 
@@ -393,7 +352,7 @@ export class SeancesService {
           enseignantId: currentEnseignantId,
           matiereId: currentMatiereId,
           salleId: currentSalleId,
-          jour: currentJour,
+          date: dateObj,
           heureDebut: debut,
           heureFin: fin,
           anneeScolaire: currentAnneeScolaire,
@@ -428,7 +387,6 @@ export class SeancesService {
 
   /**
    * Supprime une séance par son ID.
-   * (Pas de changement par rapport à la version précédente)
    */
   async remove(id: string, userId: string) {
     try {
@@ -440,7 +398,6 @@ export class SeancesService {
         throw new NotFoundException(`Séance avec l'ID "${id}" introuvable.`);
       }
 
-      // Vérifier l'utilisateur qui tente de supprimer la séance
       const deletingUser = await this.prisma.utilisateur.findUnique({
         where: { id: userId },
         include: { enseignant: true },
@@ -450,7 +407,6 @@ export class SeancesService {
         throw new NotFoundException("Utilisateur connecté introuvable.");
       }
 
-      // Seuls les ADMINs ou l'ENSEIGNANT responsable de la séance peuvent la supprimer
       if (deletingUser.role !== Role.ADMIN && deletingUser.enseignant?.id !== existingSeance.enseignantId) {
         throw new ForbiddenException("Vous n'êtes pas autorisé à supprimer cette séance.");
       }

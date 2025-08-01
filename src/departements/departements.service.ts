@@ -52,8 +52,17 @@ export class DepartementsService {
 
   async findAll() {
     try {
+      // MODIFICATION ICI : Inclure le _count des relations niveaux et enseignants
       return await this.prisma.departement.findMany({
         orderBy: { nom: 'asc' }, // Trier par nom
+        include: {
+          _count: {
+            select: {
+              niveaux: true, // Inclure le compte des niveaux associés
+              // enseignants: true, // Inclure le compte des enseignants associés (relation inexistante dans le modèle Prisma)
+            },
+          },
+        },
       });
     } catch (error) {
       console.error('Erreur lors de la récupération des départements:', error);
@@ -138,6 +147,8 @@ export class DepartementsService {
       }
 
       // Optionnel: Vérifier s'il y a des niveaux liés avant de supprimer un département
+      // Cette logique est commentée ici pour ne pas modifier votre comportement actuel.
+      // Si vous voulez empêcher la suppression si des niveaux sont associés, décommentez ceci.
       // const niveauxAssocies = await this.prisma.niveau.count({
       //   where: { departementId: id },
       // });

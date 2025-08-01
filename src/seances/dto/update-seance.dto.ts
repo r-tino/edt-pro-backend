@@ -2,13 +2,18 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateSeanceDto } from './create-seance.dto';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsUUID, IsString, IsNotEmpty, IsEnum, Matches, IsOptional } from 'class-validator';
-import { Jour } from '@prisma/client';
+import { IsUUID, IsString, IsNotEmpty, Matches, IsOptional } from 'class-validator';
 
 export class UpdateSeanceDto extends PartialType(CreateSeanceDto) {
-  // Tous les champs hérités de CreateSeanceDto deviennent optionnels grâce à PartialType.
-  // Vous pouvez ajouter ici des validations plus spécifiques si nécessaire
-  // pour les champs mis à jour, ou des champs qui n'étaient pas dans CreateSeanceDto.
+  @ApiPropertyOptional({
+    description: "Nouvelle date précise de la séance (format YYYY-MM-DD).",
+    example: "2025-07-10",
+    format: "date",
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: "La date doit être au format YYYY-MM-DD." })
+  date?: string;
 
   @ApiPropertyOptional({
     description: "Nouvel ID du niveau.",
@@ -45,15 +50,6 @@ export class UpdateSeanceDto extends PartialType(CreateSeanceDto) {
   @IsOptional()
   @IsUUID('4', { message: "La salleId doit être un UUID valide." })
   salleId?: string;
-
-  @ApiPropertyOptional({
-    description: "Nouveau jour de la semaine.",
-    enum: Jour,
-    example: Jour.MARDI,
-  })
-  @IsOptional()
-  @IsEnum(Jour, { message: "Le jour doit être une valeur valide (LUNDI, MARDI, MERCREDI, JEUDI, VENDREDI, SAMEDI)." })
-  jour?: Jour;
 
   @ApiPropertyOptional({
     description: "Nouvelle heure de début (format HH:MM).",

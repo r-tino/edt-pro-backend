@@ -85,7 +85,7 @@ export class NiveauxController {
   @ApiOperation({ summary: 'Supprimer un niveau par ID' })
   @ApiResponse({ status: 200, description: 'Niveau supprimé avec succès.' })
   @ApiResponse({ status: 404, description: 'Niveau introuvable.' })
-  @ApiResponse({ status: 409, description: 'Le niveau ne peut pas être supprimé car il a des étudiants associés.' })
+  @ApiResponse({ status: 409, description: 'Le niveau ne peut pas être supprimé car il a des entités associées.' })
   @ApiResponse({ status: 403, description: 'Accès non autorisé.' })
   async remove(@Param('id') id: string) { // Ajout de 'async'
     const result = await this.niveauxService.remove(id); // Attendre la promesse

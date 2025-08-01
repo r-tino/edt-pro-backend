@@ -1,7 +1,6 @@
 // src/seances/dto/create-seance.dto.ts
-import { IsUUID, IsString, IsNotEmpty, IsEnum, Matches, IsOptional } from 'class-validator';
+import { IsUUID, IsString, IsNotEmpty, Matches, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Jour } from '@prisma/client'; // Importez l'énumération Jour depuis Prisma
 
 export class CreateSeanceDto {
   @ApiProperty({
@@ -41,13 +40,14 @@ export class CreateSeanceDto {
   salleId: string;
 
   @ApiProperty({
-    description: "Jour de la semaine de la séance (LUNDI, MARDI, etc.).",
-    enum: Jour, // Utilise l'énumération Prisma pour Swagger
-    example: Jour.LUNDI,
+    description: "Date précise de la séance (format YYYY-MM-DD).",
+    example: "2025-07-04",
+    format: "date",
   })
-  @IsEnum(Jour, { message: "Le jour doit être une valeur valide (LUNDI, MARDI, MERCREDI, JEUDI, VENDREDI, SAMEDI)." })
-  @IsNotEmpty({ message: "Le jour est obligatoire." })
-  jour: Jour;
+  @IsString()
+  @IsNotEmpty({ message: "La date est obligatoire." })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: "La date doit être au format YYYY-MM-DD." })
+  date: string;
 
   @ApiProperty({
     description: "Heure de début de la séance (format HH:MM).",

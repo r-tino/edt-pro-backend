@@ -1,7 +1,6 @@
 // src/seances/dto/find-seances-filter.dto.ts
-import { IsOptional, IsString, IsUUID, IsEnum, Matches } from 'class-validator';
+import { IsOptional, IsString, IsUUID, Matches } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Jour } from '@prisma/client'; // Importez l'énumération Jour
 
 export class FindSeancesFilterDto {
   @ApiPropertyOptional({
@@ -41,13 +40,14 @@ export class FindSeancesFilterDto {
   salleId?: string;
 
   @ApiPropertyOptional({
-    description: "Filtrer par le jour de la semaine.",
-    enum: Jour,
-    example: Jour.LUNDI,
+    description: "Filtrer par la date précise (format YYYY-MM-DD).",
+    example: "2025-07-04",
+    format: "date",
   })
   @IsOptional()
-  @IsEnum(Jour, { message: "Le jour doit être une valeur valide (LUNDI, MARDI, MERCREDI, JEUDI, VENDREDI, SAMEDI)." })
-  jour?: Jour;
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: "La date doit être au format YYYY-MM-DD." })
+  date?: string;
 
   @ApiPropertyOptional({
     description: "Filtrer par l'heure de début (format HH:MM).",

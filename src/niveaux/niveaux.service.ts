@@ -9,6 +9,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateNiveauDto } from './dto/create-niveau.dto';
 import { UpdateNiveauDto } from './dto/update-niveau.dto';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class NiveauxService {
@@ -65,8 +66,17 @@ export class NiveauxService {
   async findAll() {
     try {
       return await this.prisma.niveau.findMany({
-        include: { departement: true }, // Inclure les informations du département lié
         orderBy: [{ nom: 'asc' }],
+        include: { // AJOUTÉ : Inclure les comptes des relations
+          departement: true,
+          _count: {
+            select: {
+              etudiants: true,
+              matieres: true,
+              seances: true,
+            },
+          },
+        },
       });
     } catch (error) {
       console.error('Erreur lors de la récupération des niveaux:', error);
@@ -80,7 +90,16 @@ export class NiveauxService {
     try {
       const niveau = await this.prisma.niveau.findUnique({
         where: { id },
-        include: { departement: true }, // Inclure les informations du département lié
+        include: { // AJOUTÉ : Inclure les comptes des relations
+          departement: true,
+          _count: {
+            select: {
+              etudiants: true,
+              matieres: true,
+              seances: true,
+            },
+          },
+        },
       });
       if (!niveau) {
         throw new NotFoundException(`Cet Niveau est introuvable.`);
@@ -89,6 +108,9 @@ export class NiveauxService {
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
+      }
+      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException(`Niveau avec l'ID "${id}" introuvable.`);
       }
       console.error('Erreur lors de la récupération du niveau:', error);
       throw new InternalServerErrorException(
@@ -105,7 +127,7 @@ export class NiveauxService {
         where: { id },
       });
       if (!existingNiveau) {
-        throw new NotFoundException(`et Niveau est introuvable.`);
+        throw new NotFoundException(`Cet Niveau est introuvable.`);
       }
 
       // 2. Si departementId est fourni, vérifier qu'il existe
@@ -160,7 +182,7 @@ export class NiveauxService {
       }
       console.error('Erreur lors de la mise à jour du niveau:', error);
       throw new InternalServerErrorException(
-        `Impossible de mettre à jour cet niveau.`,
+        `Impossible de mettre à jour cet niveau.`
       );
     }
   }
@@ -179,11 +201,29 @@ export class NiveauxService {
       const etudiantsAssocies = await this.prisma.etudiant.count({
         where: { niveauId: id },
       });
+      const matieresAssociees = await this.prisma.matiere.count({
+        where: { niveauId: id },
+      });
+      const seancesAssociees = await this.prisma.seance.count({
+        where: { niveauId: id },
+      });
+
       if (etudiantsAssocies > 0) {
         throw new ConflictException(
           `Le niveau '${existingNiveau.nom}' ne peut pas être supprimé car il a ${etudiantsAssocies} étudiant(s) associé(s).`,
         );
       }
+      if (matieresAssociees > 0) {
+        throw new ConflictException(
+          `Le niveau '${existingNiveau.nom}' ne peut pas être supprimé car il a ${matieresAssociees} matière(s) associée(s).`,
+        );
+      }
+      if (seancesAssociees > 0) {
+        throw new ConflictException(
+          `Le niveau '${existingNiveau.nom}' ne peut pas être supprimé car il a ${seancesAssociees} séance(s) associée(s).`,
+        );
+      }
+
 
       await this.prisma.niveau.delete({
         where: { id },

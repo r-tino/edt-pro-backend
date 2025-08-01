@@ -1,63 +1,41 @@
 // src/mail/mail.service.ts
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
-import Mail from 'nodemailer/lib/mailer'; // Pour le typage de Nodemailer
-import { ConfigService } from '@nestjs/config'; // Importez ConfigService
 
 @Injectable()
 export class MailService {
-  private transporter: Mail;
+  private transporter;
 
-  constructor(private configService: ConfigService) {
-    // Créez le transporteur Nodemailer lors de l'initialisation du service
+  constructor() {
     this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('MAIL_HOST'),
-      port: this.configService.get<number>('MAIL_PORT'),
-      secure: this.configService.get<number>('MAIL_PORT') === 465, // True si port 465 (SSL), false sinon (TLS/STARTTLS)
+      host: 'smtp.gmail.com', // ou ton fournisseur SMTP
+      port: 465,
+      secure: true,
       auth: {
-        user: this.configService.get<string>('MAIL_USER'),
-        pass: this.configService.get<string>('MAIL_PASS'),
+        user: process.env.SMTP_USER, // <== Ton adresse email d'envoi (expéditeur)
+        pass: process.env.SMTP_PASS, // <== Ton mot de passe (ou App Password Gmail)
       },
-      tls: {
-        rejectUnauthorized: false // Accepter les certificats auto-signés en dev (à retirer en prod ou bien configurer correctement)
-      }
     });
   }
 
-  /**
-   * Envoie un e-mail de réinitialisation de mot de passe.
-   * @param to L'adresse e-mail du destinataire.
-   * @param token Le jeton de réinitialisation.
-   * @param userName Le nom de l'utilisateur.
-   */
-  async sendPasswordResetEmail(to: string, token: string, userName: string): Promise<void> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
-    const resetLink = `${frontendUrl}/reset-password?email=${encodeURIComponent(to)}&token=${encodeURIComponent(token)}`;
-    const mailFrom = this.configService.get<string>('MAIL_FROM') || 'no-reply@example.com';
+  async sendPasswordResetEmail(email: string, token: string, nom: string) {
+    // email: celui de l'utilisateur qui a demandé le reset
+    // token: généré pour cet utilisateur
+    // nom: nom de l'utilisateur (pour personnaliser le mail)
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+    const resetUrl = `${frontendUrl}/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`;
 
-    try {
-      await this.transporter.sendMail({
-        from: `"Votre Application" <${mailFrom}>`, // Expéditeur
-        to: to, // Destinataire
-        subject: 'Réinitialisation de votre mot de passe', // Sujet
-        html: `
-          <p>Bonjour ${userName},</p>
-          <p>Vous avez demandé à réinitialiser votre mot de passe pour votre compte sur notre application.</p>
-          <p>Veuillez cliquer sur le lien suivant pour procéder à la réinitialisation :</p>
-          <p><a href="${resetLink}">${resetLink}</a></p>
-          <p>Ce lien expirera dans 1 heure.</p>
-          <p>Si vous n'avez pas demandé cette réinitialisation, veuillez ignorer cet e-mail.</p>
-          <p>Cordialement,</p>
-          <p>L'équipe de votre application</p>
-        `,
-      });
-      console.log(`Email de réinitialisation envoyé à ${to}`);
-    } catch (error) {
-      console.error('Erreur lors de l\'envoi de l\'e-mail de réinitialisation:', error);
-      throw new InternalServerErrorException('Impossible d\'envoyer l\'e-mail de réinitialisation du mot de passe.');
-    }
+    await this.transporter.sendMail({
+      from: `"EDT Pro" <${process.env.SMTP_USER}>`, // Expéditeur (ton email)
+      to: email, // <== C'est l'email du user (récupéré depuis le champ saisi dans le formulaire)
+      subject: 'Réinitialisation de votre mot de passe',
+      html: `
+        <h2>Bonjour ${nom},</h2>
+        <p>Vous avez demandé à réinitialiser votre mot de passe sur EDT Pro.<br/>
+        Cliquez sur le lien ci-dessous&nbsp;:</p>
+        <p><a href="${resetUrl}" style="color:#2563eb;font-weight:bold;">Réinitialiser mon mot de passe</a></p>
+        <p>Ce lien expirera dans 1 heure. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>
+      `
+    });
   }
-
-  // Vous pouvez ajouter d'autres méthodes pour envoyer différents types d'e-mails ici
-  // async sendWelcomeEmail(to: string, userName: string): Promise<void> { /* ... */ }
 }

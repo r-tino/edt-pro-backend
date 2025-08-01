@@ -1,5 +1,4 @@
-// src/seances/seances.controller.ts
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, HttpCode, HttpStatus, Req, ForbiddenException, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, HttpCode, HttpStatus, Req, Query } from '@nestjs/common';
 import { SeancesService } from './seances.service';
 import { CreateSeanceDto } from './dto/create-seance.dto';
 import { UpdateSeanceDto } from './dto/update-seance.dto';
@@ -7,7 +6,7 @@ import { FindSeancesFilterDto } from './dto/find-seances-filter.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/roles.decorator';
-import { Jour, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { Request } from 'express';
 
@@ -45,7 +44,7 @@ export class SeancesController {
   @ApiQuery({ name: 'enseignantId', type: String, required: false, description: "Filtrer par l'ID de l'enseignant" })
   @ApiQuery({ name: 'matiereId', type: String, required: false, description: "Filtrer par l'ID de la matière" })
   @ApiQuery({ name: 'salleId', type: String, required: false, description: "Filtrer par l'ID de la salle" })
-  @ApiQuery({ name: 'jour', enum: Jour, required: false, description: "Filtrer par le jour de la semaine" })
+  @ApiQuery({ name: 'date', type: String, required: false, description: "Filtrer par la date précise (YYYY-MM-DD)" })
   @ApiQuery({ name: 'anneeScolaire', type: String, required: false, description: "Filtrer par l'année scolaire (ex: 2024-2025)" })
   @ApiQuery({ name: 'semestre', type: String, required: false, description: "Filtrer par le semestre (ex: S1, S2)" })
   @ApiResponse({ status: 200, description: 'Liste des séances filtrées récupérée avec succès ou message indiquant aucune séance.' })
