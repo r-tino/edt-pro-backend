@@ -111,7 +111,18 @@ export class SeancesService {
 
       for (const seance of overlappingSeances) {
         if (seance.enseignantId === enseignantId) {
-          throw new ConflictException(`L'enseignant est déjà occupé de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} pour une autre séance à cette date.`);
+          throw new ConflictException({
+            type: 'ENSEIGNANT_OCCUPE',
+            message: `L'enseignant est déjà occupé de ...`,
+            conflit: {
+              debut: seance.heureDebut,
+              fin: seance.heureFin,
+              salleId: seance.salleId,
+              enseignantId: seance.enseignantId,
+            },
+          });
+
+          // throw new ConflictException(`L'enseignant est déjà occupé de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} pour une autre séance à cette date.`);
         }
         if (seance.salleId === salleId) {
           throw new ConflictException(`La salle "${salle.nom}" est déjà occupée de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} à cette date.`);
@@ -337,7 +348,18 @@ export class SeancesService {
 
       for (const seance of overlappingSeances) {
         if (seance.enseignantId === currentEnseignantId) {
-          throw new ConflictException(`L'enseignant est déjà occupé de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} pour une autre séance à cette date.`);
+          throw new ConflictException({
+            type: 'ENSEIGNANT_OCCUPE',
+            message: `L'enseignant est déjà occupé de ...`,
+            conflit: {
+              debut: seance.heureDebut,
+              fin: seance.heureFin,
+              salleId: seance.salleId,
+              enseignantId: seance.enseignantId,
+            },
+          });
+
+          // throw new ConflictException(`L'enseignant est déjà occupé de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} pour une autre séance à cette date.`);
         }
         if (seance.salleId === currentSalleId) {
           throw new ConflictException(`La salle "${salle.nom}" est déjà occupée de ${seance.heureDebut.toTimeString().substring(0, 5)} à ${seance.heureFin.toTimeString().substring(0, 5)} à cette date.`);
