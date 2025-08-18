@@ -8,6 +8,13 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  app.enableCors({
+  origin: process.env.FRONTEND_URL,
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  });
+  app.setGlobalPrefix('api'); // Préfixe global pour toutes les routes
+
   // Configuration CORS
   app.enableCors({
     origin: 'http://localhost:3001', // Autorise uniquement les requêtes de votre frontend Next.js sur le port 3001

@@ -25,30 +25,38 @@ export class UtilisateursService {
    * @returns L'utilisateur créé.
    */
   async create(createUtilisateurDto: CreateUtilisateurDto) {
-    const { email } = createUtilisateurDto;
-    try {
-      const existingUser = await this.prisma.utilisateur.findUnique({
-        where: { email },
-      });
-      if (existingUser) {
-        throw new ConflictException(`L'utilisateur avec l'email "${email}" existe déjà.`);
-      }
-      // Note: Le mot de passe devrait être hashé ici avant d'être sauvegardé.
-      // Pour une création directe par admin, le mot de passe devrait être généré ou fourni hashé.
-      // Ou bien, cette route ne devrait pas être utilisée pour la création d'utilisateurs avec mot de passe.
-      // La logique d'enregistrement via auth/register est plus robuste pour cela.
-      return await this.prisma.utilisateur.create({ data: createUtilisateurDto });
-    } catch (error) {
-      if (error instanceof ConflictException) {
-        throw error;
-      }
-      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException(`L'email "${email}" est déjà utilisé.`);
-      }
-      console.error('Erreur lors de la création de l\'utilisateur:', error);
-      throw new InternalServerErrorException('Erreur interne du serveur lors de la création de l\'utilisateur.');
+  const { email, motDePasse, ...rest } = createUtilisateurDto;
+  try {
+    const existingUser = await this.prisma.utilisateur.findUnique({
+      where: { email },
+    });
+    if (existingUser) {
+      throw new ConflictException(`L'utilisateur avec l'email "${email}" existe déjà.`);
     }
+
+    // 🔑 Hash du mot de passe
+    const hashedPassword = await bcrypt.hash(motDePasse, 10);
+
+    return await this.prisma.utilisateur.create({
+      data: {
+        ...rest,
+        email,
+        motDePasse: hashedPassword,
+      },
+    });
+  } catch (error) {
+    if (error instanceof ConflictException) {
+      throw error;
+    }
+    if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ConflictException(`L'email "${email}" est déjà utilisé.`);
+    }
+    console.error('Erreur lors de la création de l\'utilisateur:', error);
+    throw new InternalServerErrorException(
+      'Erreur interne du serveur lors de la création de l\'utilisateur.'
+    );
   }
+}
 
   /**
    * Récupère tous les utilisateurs avec leurs profils (enseignant, étudiant) et relations imbriquées.

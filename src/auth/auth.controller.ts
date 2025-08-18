@@ -8,6 +8,13 @@ import { RequestPasswordResetDto } from './dto/request-password-reset.dto'; // <
 import { ResetPasswordDto } from './dto/reset-password.dto';       // <-- Ajouté
 import { Role } from '@prisma/client';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import rateLimit from 'express-rate-limit';
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 5, // 5 tentatives par IP sur 15 minutes
+  message: 'Trop de tentatives. Réessayez dans 15 minutes.',
+});
 
 @ApiTags('Authentification')
 @Controller('auth')
